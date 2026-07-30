@@ -1,7 +1,9 @@
 #include <iostream>
 
-#include "memory.hpp"
+#include "type.h"
 #include "cpu.hpp"
+#include "memory.hpp"
+#include "decoder.hpp"
 
 int main(int argc, char* argv[]) {
     if (argc != 2) {
@@ -15,7 +17,7 @@ int main(int argc, char* argv[]) {
     Memory mem;
     mem.load_ins(argv[1]);
     CPU cpu(mem);
-    while (clock < max_clock && !cpu.finish()) {
+    while (clock < max_clock && !cpu.is_finished()) {
         clock++;
         cpu.step();
     }
