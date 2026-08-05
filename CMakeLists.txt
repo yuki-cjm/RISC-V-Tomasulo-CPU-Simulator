@@ -6,5 +6,17 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_CXX_FLAGS_RELEASE "-O2 -DNDEBUG")
 set(CMAKE_BUILD_TYPE Release)
-add_executable(code src/main.cpp src/cpu.cpp src/decoder.cpp src/memory.cpp)
+add_executable(code
+    src/main.cpp
+    src/cpu.cpp
+    src/decoder.cpp
+    src/memory.cpp
+    src/branch_predictor.cpp
+    src/cdb.cpp
+    src/register_file.cpp
+    src/rat.cpp
+    src/reservation_station.cpp
+    src/load_store_queue.cpp
+    src/reorder_buffer.cpp
+)
 target_include_directories(code PRIVATE ${CMAKE_SOURCE_DIR}/include)

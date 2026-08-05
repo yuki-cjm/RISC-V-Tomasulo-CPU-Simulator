@@ -32,162 +32,69 @@ class ReorderBuffer {
     int head_n_, tail_n_, cnt_n_;
     int cap_;
 
-    static ROB_Entry empty_entry() {
-        return {false, false, false, 0, -1, 0, 0, false, false, false, false, 0, false};
-    }
+    static ROB_Entry empty_entry();
 
   public:
-    ReorderBuffer(int cap) : cap_(cap) {
-        head_o_ = tail_o_ = cnt_o_ = 0;
-        head_n_ = tail_n_ = cnt_n_ = 0;
-        for (int i = 0; i < MAX_SZ; ++i)
-            old_[i] = new_[i] = empty_entry();
-    }
+    ReorderBuffer(int cap);
 
     // ---- 状态管理 ----
-    void snap() {
-        for (int i = 0; i < cap_; ++i)
-            new_[i] = old_[i];
-        head_n_ = head_o_; tail_n_ = tail_o_; cnt_n_ = cnt_o_;
-    }
-
-    void upd() {
-        for (int i = 0; i < cap_; ++i)
-            old_[i] = new_[i];
-        head_o_ = head_n_; tail_o_ = tail_n_; cnt_o_ = cnt_n_;
-    }
+    void snap();
+    void upd();
 
     // ---- 读取旧状态 ----
-    bool full_o()  const { return cnt_o_ == cap_; }
-    bool empty_o() const { return cnt_o_ == 0; }
-    int  head_o()  const { return head_o_; }
-    int  count_o() const { return cnt_o_; }
-    int  cap()     const { return cap_; }
+    bool full_o()  const;
+    bool empty_o() const;
+    int  head_o()  const;
+    int  count_o() const;
+    int  cap()     const;
 
-    const ROB_Entry& entry_o(int idx) const { return old_[idx]; }
-    const ROB_Entry& entry_cur(int idx) const { return new_[idx]; }
+    const ROB_Entry& entry_o(int idx) const;
+    const ROB_Entry& entry_cur(int idx) const;
 
     // 按标签查找
-    int find_by_tag_o(int tag) const {
-        for (int i = 0; i < cap_; ++i) {
-            if (old_[i].busy && !old_[i].flushed && old_[i].dest_tag == tag)
-                return i;
-        }
-        return -1;
-    }
+    int find_by_tag_o(int tag) const;
 
     // 检查标签是否在 ROB 中有效（未被 flush）
-    bool tag_valid_o(int tag) const {
-        return find_by_tag_o(tag) >= 0;
-    }
+    bool tag_valid_o(int tag) const;
 
     // 获取队首条目
-    int head_entry_o() const {
-        if (cnt_o_ == 0) return -1;
-        return head_o_;
-    }
+    int head_entry_o() const;
 
     // 遍历有效条目（从 head 开始第 n 个）
-    int nth_valid_o(int n) const {
-        int found = 0;
-        for (int i = 0; i < cap_; ++i) {
-            int idx = (head_o_ + i) % cap_;
-            if (old_[idx].busy && !old_[idx].flushed) {
-                if (found == n) return idx;
-                found++;
-            }
-        }
-        return -1;
-    }
+    int nth_valid_o(int n) const;
 
-    int valid_count_o() const {
-        int c = 0;
-        for (int i = 0; i < cap_; ++i) {
-            int idx = (head_o_ + i) % cap_;
-            if (old_[idx].busy && !old_[idx].flushed) c++;
-        }
-        return c;
-    }
+    int valid_count_o() const;
 
     // 查找队首第一个未 flush 的条目索引
-    int first_valid_o() const {
-        for (int i = 0; i < cnt_o_; ++i) {
-            int idx = (head_o_ + i) % cap_;
-            if (old_[idx].busy && !old_[idx].flushed)
-                return idx;
-        }
-        return -1;
-    }
+    int first_valid_o() const;
 
     // ---- 写入新状态（issue：分配条目） ----
-    int alloc_n() {
-        if (cnt_n_ == cap_) return -1;
-        int idx = tail_n_;
-        new_[idx] = empty_entry();
-        new_[idx].busy = true;
-        tail_n_ = (tail_n_ + 1) % cap_;
-        cnt_n_++;
-        return idx;
-    }
+    int alloc_n();
 
-    void set_dest_n(int idx, u8 rd, int tag) {
-        new_[idx].dest_reg = rd;
-        new_[idx].dest_tag = tag;
-    }
+    void set_dest_n(int idx, u8 rd, int tag);
 
-    void set_pc_n(int idx, u32 pc) {
-        new_[idx].pc = pc;
-    }
+    void set_pc_n(int idx, u32 pc);
 
-    void set_branch_n(int idx, bool pred, bool br, bool jp, u32 tgt) {
-        new_[idx].pred_taken = pred;
-        new_[idx].branch = br;
-        new_[idx].jump = jp;
-        new_[idx].branch_target = tgt;
-    }
+    void set_branch_n(int idx, bool pred, bool br, bool jp, u32 tgt);
 
-    void set_store_n(int idx) {
-        new_[idx].is_store = true;
-    }
+    void set_store_n(int idx);
 
     // ---- 写入新状态（writeback：标记结果就绪） ----
-    void write_result_n(int idx, u32 val) {
-        new_[idx].ready = true;
-        new_[idx].value = val;
-    }
+    void write_result_n(int idx, u32 val);
 
     // ---- 写入新状态（execute：标记 store 已完成） ----
-    void mark_store_done_n(int idx) {
-        new_[idx].store_done = true;
-    }
+    void mark_store_done_n(int idx);
 
     // ---- 写入新状态（execute/mispredict：刷掉指定位置之后的所有条目） ----
-    void flush_after_n(int idx) {
-        // 标记从 idx 之后到队尾的所有条目为 flushed
-        int cur = (idx + 1) % cap_;
-        while (cur != tail_n_) {
-            new_[cur].flushed = true;
-            cur = (cur + 1) % cap_;
-        }
-    }
+    void flush_after_n(int idx);
 
     // 刷掉所有
-    void flush_all_n() {
-        for (int i = 0; i < cap_; ++i)
-            new_[i] = empty_entry();
-        head_n_ = tail_n_ = cnt_n_ = 0;
-    }
+    void flush_all_n();
 
-    bool is_flushed_n(int idx) const {
-        return new_[idx].flushed;
-    }
+    bool is_flushed_n(int idx) const;
 
     // ---- 写入新状态（commit：提交队首） ----
-    void commit_head_n() {
-        new_[head_n_].busy = false;
-        head_n_ = (head_n_ + 1) % cap_;
-        cnt_n_--;
-    }
+    void commit_head_n();
 
-    ROB_Entry& entry_n(int idx) { return new_[idx]; }
+    ROB_Entry& entry_n(int idx);
 };

@@ -22,6 +22,4 @@ struct CDB_Entry {
 //   2. 四个步骤（issue/execute/writeback/commit）都使用这个 CDB
 //   3. 各步骤通过 CDB 获取操作数旁路、分支结果、mispredict 信息
 // ============================================================================
-inline CDB_Entry make_empty_cdb() {
-    return {false, 0, -1, false, 0, -1};
-}
+CDB_Entry make_empty_cdb();

@@ -11,35 +11,15 @@ class BranchPredictor {
     u8 new_[BHT_SIZE];
 
   public:
-    BranchPredictor() {
-        for (u32 i = 0; i < BHT_SIZE; ++i)
-            old_[i] = new_[i] = 1;  // 初始 weakly not taken
-    }
+    BranchPredictor();
 
     // ---- 状态管理 ----
-    void snap() {
-        for (u32 i = 0; i < BHT_SIZE; ++i)
-            new_[i] = old_[i];
-    }
-
-    void upd() {
-        for (u32 i = 0; i < BHT_SIZE; ++i)
-            old_[i] = new_[i];
-    }
+    void snap();
+    void upd();
 
     // ---- 预测（读旧状态） ----
-    bool predict_o(u32 pc) const {
-        u32 idx = (pc >> 2) % BHT_SIZE;
-        return old_[idx] >= 2;
-    }
+    bool predict_o(u32 pc) const;
 
     // ---- 更新（写新状态） ----
-    void update_n(u32 pc, bool taken) {
-        u32 idx = (pc >> 2) % BHT_SIZE;
-        if (taken) {
-            if (new_[idx] < 3) new_[idx]++;
-        } else {
-            if (new_[idx] > 0) new_[idx]--;
-        }
-    }
+    void update_n(u32 pc, bool taken);
 };
