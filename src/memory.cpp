@@ -15,6 +15,10 @@ void Memory::write_half(u32 addr, u16 val) {
 }
 
 void Memory::write_word(u32 addr, u32 val) {
+    if (addr + 3 >= MEM_SIZE) {
+        fprintf(stderr, "Memory write_word out of bounds: addr=0x%x val=0x%x\n", addr, val);
+        fatal("Memory write_word out of bounds");
+    }
     bytes[addr] = val & 0xFF;
     bytes[addr + 1] = (val >> 8) & 0xFF;
     bytes[addr + 2] = (val >> 16) & 0xFF;

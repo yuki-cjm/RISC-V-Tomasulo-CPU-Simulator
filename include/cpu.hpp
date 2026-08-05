@@ -3,42 +3,94 @@
 #include "type.h"
 #include "memory.hpp"
 #include "decoder.hpp"
-#include "pipeline_regs.hpp"
+#include "register_file.hpp"
+#include "rat.hpp"
+#include "reservation_station.hpp"
+#include "reorder_buffer.hpp"
+#include "load_store_queue.hpp"
+#include "branch_predictor.hpp"
+#include "cdb.hpp"
+
+// ============================================================================
+// CPU: Tomasulo 架构顶层控制器
+//
+// 每周期执行流程（步骤 2-5 可任意交换）：
+//   1. snap_all()        — 所有部件保存旧状态
+//   2. cdb = precompute_cdb() — 从旧状态计算本周期 CDB 广播
+//   3-6. 四个步骤（任意顺序均可）：
+//        step_issue(cdb)
+//        step_execute(cdb)
+//        step_writeback(cdb)
+//        step_commit(cdb)
+//   7. upd_all()         — 所有部件更新到新状态
+//
+// 关键设计：每个步骤只读 _o 旧状态 + CDB，只写 _n 新状态。
+// 不同步骤写入的状态字段互不重叠，因此顺序可任意交换。
+// ============================================================================
 
 class CPU {
-private:
-    Memory&   mem;
-    Decoder   decoder;
-    u32 reg[32]{};
-    u32 pc = 0;
-    bool finished = false;
+    // ---- 外部模块 ----
+    Memory&            mem;
+    Decoder            decoder;
 
-    IF_ID   if_id;
-    ID_EX   id_ex;
-    EX_MEM  ex_mem;
-    MEM_WB  mem_wb;
+    // ---- Tomasulo 组件 ----
+    RegisterFile       rf;
+    RegAliasTable      rat;
+    ReservationStation alu_rs;
+    ReservationStation ld_rs;
+    ReservationStation st_rs;
+    ReservationStation br_rs;
+    ReorderBuffer      rob;
+    LoadStoreQueue     lsq;
+    BranchPredictor    bp;
 
-    IF_ID   if_id_nxt;
-    ID_EX   id_ex_nxt;
-    EX_MEM  ex_mem_nxt;
-    MEM_WB  mem_wb_nxt;
+    // ---- 取指缓冲区 (old/new) ----
+    struct FetchBuf { u32 pc; u32 instr; bool valid; };
+    FetchBuf fb_o, fb_n;
 
-    int  load_stall = 0;   // load-use 多周期 stall 计数
-    int  mem_wait   = 0;   // 内存访问剩余等待周期 (load/store 共需 3 cycles)
+    // ---- CPU 级状态 (old/new) ----
+    u32  pc_o,  pc_n;
+    int  tag_o, tag_n;       // 递增标签计数器
+    bool done;               // 是否停机
+    u64  tb_o,  tb_n;        // 总分支数
+    u64  cb_o,  cb_n;        // 预测正确分支数
 
-    u32  read_reg(u8 idx);
-    void write_reg(u8 idx, u32 val);
-    u32  forward_rs1(u8 rs1);
-    u32  forward_rs2(u8 rs2);
+    // 标记本周期 issue 阶段重命名了哪些寄存器
+    // 用于 commit 阶段避免冲突：若 rd 在本周期被 issue 重命名，commit 不清除
+    bool issued_rd_o_[REG_COUNT];
+    bool issued_rd_n_[REG_COUNT];
 
-    void stage_IF();
-    void stage_ID();
-    void stage_EX();
-    void stage_MEM();
-    void stage_WB();
+    // JALR 前端停顿标志：发射 JALR 后等待目标地址解析
+    bool stall_frontend_o_, stall_frontend_n_;
 
-public:
-    CPU(Memory& m) : mem(m) {}
+    // ---- 辅助方法 ----
+    ReservationStation& pick_rs(Instr op);
+    static bool has_rs1(Instr op);
+    static bool has_rs2(Instr op);
+
+    // 从旧状态计算 CDB
+    CDB_Entry precompute_cdb();
+
+    // 取指
+    void step_fetch();
+
+    // 四个流水线步骤（可任意交换顺序）
+    void step_issue(const CDB_Entry& cdb);
+    void step_execute(const CDB_Entry& cdb);
+    void step_writeback(const CDB_Entry& cdb);
+    void step_commit(const CDB_Entry& cdb);
+
+    // 状态管理
+    void snap_all();
+    void upd_all();
+
+  public:
+    CPU(Memory& m);
+
+    // 执行一个时钟周期
     void step();
-    bool is_finished() const { return finished; }
+
+    bool is_finished() const { return done; }
+    u64  total_br()    const { return tb_o; }
+    u64  correct_br()  const { return cb_o; }
 };

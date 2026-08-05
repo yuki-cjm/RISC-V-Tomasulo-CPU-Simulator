@@ -17,6 +17,8 @@ using i32 = int32_t;
 constexpr u32 REG_COUNT = 32;
 constexpr u32 MEM_SIZE = 0x200000;
 constexpr u32 INSTR_LEN = 4;
+constexpr u32 MEM_LATENCY=3,ROB_SIZE=16,LSQ_SIZE=16,RS_ALU_SZ=4,RS_LD_SZ=3,RS_ST_SZ=3,RS_BR_SZ=2,BP_SZ=64;
+struct FU_Result{u32 value;};
 
 enum class Instr { 
     // Type: R      Opcode: 0b0110011
