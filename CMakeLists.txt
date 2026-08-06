@@ -9,6 +9,7 @@ set(CMAKE_BUILD_TYPE Release)
 add_executable(code
     src/main.cpp
     src/cpu.cpp
+    src/alu.cpp
     src/decoder.cpp
     src/memory.cpp
     src/branch_predictor.cpp

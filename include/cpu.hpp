@@ -26,7 +26,15 @@
 //
 // 关键设计：每个步骤只读 _o 旧状态 + CDB，只写 _n 新状态。
 // 不同步骤写入的状态字段互不重叠，因此顺序可任意交换。
+//
+// 步骤排列：perm 取 0-23，对应 24 种排列。
+//   0=I 1=E 2=W 3=C，用 Lehmer 码解码。
 // ============================================================================
+
+// 步骤排列查找表：24 种排列，按字典序
+// perm_table[p][0..3] = 步骤类型 (0=Issue, 1=Execute, 2=Writeback, 3=Commit)
+constexpr int PERM_COUNT = 24;
+extern const int PERM_TABLE[PERM_COUNT][4];
 
 class CPU {
     // ---- 外部模块 ----
@@ -43,6 +51,9 @@ class CPU {
     ReorderBuffer      rob;
     LoadStoreQueue     lsq;
     BranchPredictor    bp;
+
+    // ---- 步骤排列 ----
+    int perm_;  // 0-23
 
     // ---- 取指缓冲区 (old/new) ----
     struct FetchBuf { u32 pc; u32 instr; bool valid; };
@@ -85,7 +96,7 @@ class CPU {
     void upd_all();
 
   public:
-    CPU(Memory& m);
+    CPU(Memory& m, int perm = 0);
 
     // 执行一个时钟周期
     void step();

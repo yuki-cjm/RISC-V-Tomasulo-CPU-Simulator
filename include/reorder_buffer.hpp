@@ -16,9 +16,12 @@ struct ROB_Entry {
     bool  branch;        // 是分支指令
     bool  jump;          // 是跳转指令
     bool  is_store;      // 是 store 指令
-    bool  pred_taken;    // 分支预测方向
+    bool  pred_taken;    // 分支预测方向（最终选择）
     u32   branch_target; // 分支目标地址
     bool  store_done;    // store 指令已执行完毕（等待提交时写内存）
+    u32   ghr_snapshot;  // 分支预测时的 GHR 值（用于 PHT 训练 & 误预测修复）
+    bool  bimod_pred;    // Bimodal 预测器的独立预测
+    bool  gshare_pred;   // Gshare 预测器的独立预测
 };
 
 // ============================================================================
@@ -78,6 +81,12 @@ class ReorderBuffer {
     void set_branch_n(int idx, bool pred, bool br, bool jp, u32 tgt);
 
     void set_store_n(int idx);
+
+    void set_ghr_snapshot_n(int idx, u32 ghr);
+
+    void set_bimod_pred_n(int idx, bool pred);
+
+    void set_gshare_pred_n(int idx, bool pred);
 
     // ---- 写入新状态（writeback：标记结果就绪） ----
     void write_result_n(int idx, u32 val);

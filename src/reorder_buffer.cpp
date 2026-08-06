@@ -2,7 +2,7 @@
 
 ROB_Entry ReorderBuffer::empty_entry() {
     return {false, false, false, 0, -1, 0, 0,
-            false, false, false, false, 0, false};
+            false, false, false, false, 0, false, 0, false, false};
 }
 
 ReorderBuffer::ReorderBuffer(int cap) : cap_(cap) {
@@ -117,6 +117,18 @@ void ReorderBuffer::set_branch_n(int idx, bool pred, bool br, bool jp, u32 tgt) 
 
 void ReorderBuffer::set_store_n(int idx) {
     new_[idx].is_store = true;
+}
+
+void ReorderBuffer::set_ghr_snapshot_n(int idx, u32 ghr) {
+    new_[idx].ghr_snapshot = ghr;
+}
+
+void ReorderBuffer::set_bimod_pred_n(int idx, bool pred) {
+    new_[idx].bimod_pred = pred;
+}
+
+void ReorderBuffer::set_gshare_pred_n(int idx, bool pred) {
+    new_[idx].gshare_pred = pred;
 }
 
 void ReorderBuffer::write_result_n(int idx, u32 val) {

@@ -2,36 +2,18 @@
 #include <cstdlib>
 #include <iostream>
 #include "cpu.hpp"
+#include "alu.hpp"
 
 // ============================================================================
-// 辅助：ALU 运算
+// 步骤排列查找表：24 种排列（字典序）
+// 0=Issue, 1=Execute, 2=Writeback, 3=Commit
 // ============================================================================
-static u32 compute_alu(Instr op, u32 a, u32 b, u32 imm, u32 pc) {
-    switch (op) {
-        case Instr::ADD:   return a + b;
-        case Instr::SUB:   return a - b;
-        case Instr::AND:   return a & b;
-        case Instr::OR:    return a | b;
-        case Instr::XOR:   return a ^ b;
-        case Instr::SLL:   return a << (b & 0x1F);
-        case Instr::SRL:   return a >> (b & 0x1F);
-        case Instr::SRA:   return (u32)((i32)a >> (b & 0x1F));
-        case Instr::SLT:   return ((i32)a < (i32)b) ? 1 : 0;
-        case Instr::SLTU:  return (a < b) ? 1 : 0;
-        case Instr::ADDI:  return a + imm;
-        case Instr::ANDI:  return a & imm;
-        case Instr::ORI:   return a | imm;
-        case Instr::XORI:  return a ^ imm;
-        case Instr::SLLI:  return a << (imm & 0x1F);
-        case Instr::SRLI:  return a >> (imm & 0x1F);
-        case Instr::SRAI:  return (u32)((i32)a >> (imm & 0x1F));
-        case Instr::SLTI:  return ((i32)a < (i32)imm) ? 1 : 0;
-        case Instr::SLTIU: return (a < (u32)imm) ? 1 : 0;
-        case Instr::AUIPC: return pc + imm;
-        case Instr::LUI:   return imm;
-        default:           return 0;
-    }
-}
+const int PERM_TABLE[PERM_COUNT][4] = {
+    {0,1,2,3}, {0,1,3,2}, {0,2,1,3}, {0,2,3,1}, {0,3,1,2}, {0,3,2,1},
+    {1,0,2,3}, {1,0,3,2}, {1,2,0,3}, {1,2,3,0}, {1,3,0,2}, {1,3,2,0},
+    {2,0,1,3}, {2,0,3,1}, {2,1,0,3}, {2,1,3,0}, {2,3,0,1}, {2,3,1,0},
+    {3,0,1,2}, {3,0,2,1}, {3,1,0,2}, {3,1,2,0}, {3,2,0,1}, {3,2,1,0}
+};
 
 // ============================================================================
 // 辅助：判断指令类型
@@ -68,7 +50,7 @@ ReservationStation& CPU::pick_rs(Instr op) {
 // ============================================================================
 // 构造 & 状态管理
 // ============================================================================
-CPU::CPU(Memory& m)
+CPU::CPU(Memory& m, int perm)
     : mem(m)
     , alu_rs(RS_ALU_SZ, "ALU")
     , ld_rs(RS_LD_SZ, "LD")
@@ -76,6 +58,7 @@ CPU::CPU(Memory& m)
     , br_rs(RS_BR_SZ, "BR")
     , rob(ROB_SIZE)
     , lsq(LSQ_SIZE)
+    , perm_(perm)
 {
     done = false;
     tag_o = tag_n = 1;
@@ -242,7 +225,7 @@ CDB_Entry CPU::precompute_cdb() {
 
             // ALU 类指令: cycle_left 必须为 0
             if (e.cycle_left > 0) continue;
-            u32 result = compute_alu(e.op, e.Vj, e.Vk, e.imm, e.pc);
+            u32 result = ALU::compute(e.op, e.Vj, e.Vk, e.imm, e.pc);
             return {true, result, e.dest_tag, false, 0, -1};
         }
     }
@@ -402,10 +385,15 @@ void CPU::step_issue(const CDB_Entry& cdb) {
         pc_n = instr_pc + d.imm;  // 更新取指 PC
         fb_n = {0, 0, false};
     } else if (br) {
-        // 条件分支：使用分支预测器
-        bool pred   = bp.predict_o(instr_pc);
-        u32  target = instr_pc + d.imm;
+        // 条件分支：Tournament 预测器
+        bool pred         = bp.predict_o(instr_pc);
+        bool bimod_pred   = bp.bimod_pred_o(instr_pc);
+        bool gshare_pred  = bp.gshare_pred_o(instr_pc);
+        u32  target       = instr_pc + d.imm;
         rob.set_branch_n(rob_idx, pred, true, false, target);
+        rob.set_ghr_snapshot_n(rob_idx, bp.get_old_ghr());
+        rob.set_bimod_pred_n(rob_idx, bimod_pred);
+        rob.set_gshare_pred_n(rob_idx, gshare_pred);
         if (pred) {
             pc_n = target;
         }
@@ -522,7 +510,9 @@ void CPU::step_execute(const CDB_Entry& cdb) {
                 case Instr::BGEU: taken = (eo.Vj >= eo.Vk); break;
                 default: break;
             }
-            bp.update_n(eo.pc, taken);
+            const ROB_Entry& re = rob.entry_o(eo.rob_idx);
+            bp.update_n(eo.pc, taken, re.ghr_snapshot,
+                        re.bimod_pred, re.gshare_pred, false);
             tb_n++;
             cb_n++;
             return;
@@ -543,7 +533,9 @@ void CPU::step_execute(const CDB_Entry& cdb) {
             }
             u32 correct_pc = taken ? target : (eo.pc + 4);
 
-            bp.update_n(eo.pc, taken);
+            const ROB_Entry& re = rob.entry_o(eo.rob_idx);
+            bp.update_n(eo.pc, taken, re.ghr_snapshot,
+                        re.bimod_pred, re.gshare_pred, true);
             tb_n++;
 
             // 冲刷流水线（写 new_ 状态）：只清除该分支之后的年轻指令。
