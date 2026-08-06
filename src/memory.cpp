@@ -42,11 +42,14 @@ void Memory::load_ins(const std::string& path) {
     if (!file.is_open()) {
         fatal("Cannot open file: " + path);
     }
+    load_ins(file);
+}
 
+void Memory::load_ins(std::istream& is) {
     std::string line;
     u32 addr = 0;
 
-    while (std::getline(file, line)) {
+    while (std::getline(is, line)) {
         if (line.empty()) continue;
 
         if (line[0] == '@') {

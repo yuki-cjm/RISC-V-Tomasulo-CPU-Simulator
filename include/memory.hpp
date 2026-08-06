@@ -19,5 +19,8 @@ class Memory {
 
     void load_ins(const std::string& path);
 
+    // 从任意输入流加载（OJ 用 cin，本地用 ifstream）
+    void load_ins(std::istream& is);
+
     void print(); // use for debugging
 };
