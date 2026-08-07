@@ -14,7 +14,7 @@ add_executable(code
     src/memory.cpp
     src/branch_predictor.cpp
     src/cdb.cpp
-    src/register_file.cpp
+    src/register.cpp
     src/rat.cpp
     src/reservation_station.cpp
     src/load_store_queue.cpp

@@ -6,8 +6,7 @@
 int main(int argc, char* argv[]) {
     Memory mem;
 
-// 取消下面这行注释即可切回本地文件模式
-// #define LOCAL_FILE_MODE
+#define LOCAL_FILE_MODE
 #ifdef LOCAL_FILE_MODE
     if (argc != 2) {
         std::cerr << "Usage: " << argv[0] << " <data>\n";
@@ -19,7 +18,17 @@ int main(int argc, char* argv[]) {
 #endif
 
     CPU cpu(mem);
+    u64 cycle = 0;
     while (!cpu.is_finished()) {
+        cycle++;
         cpu.step();
+    }
+    std::cout << "总时钟数：" << cycle << std::endl;
+    u64 tb = cpu.total_br();
+    if (tb > 0) {
+        std::cout << "分支预测准确率：" << (100.0 * cpu.correct_br() / tb)
+                  << "% (" << cpu.correct_br() << "/" << tb << ")" << std::endl;
+    } else {
+        std::cout << "分支预测准确率: N/A (无分支指令)" << std::endl;
     }
 }

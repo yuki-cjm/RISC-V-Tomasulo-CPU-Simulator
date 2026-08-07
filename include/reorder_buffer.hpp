@@ -2,9 +2,6 @@
 
 #include "type.h"
 
-// ============================================================================
-// ROB_Entry: 重排序缓冲区条目
-// ============================================================================
 struct ROB_Entry {
     bool  busy;
     bool  ready;         // 结果已就绪，可以提交
@@ -20,19 +17,16 @@ struct ROB_Entry {
     u32   branch_target; // 分支目标地址
     bool  store_done;    // store 指令已执行完毕（等待提交时写内存）
     u32   ghr_snapshot;  // 分支预测时的 GHR 值（用于 PHT 训练 & 误预测修复）
-    bool  bimod_pred;    // Bimodal 预测器的独立预测
+    bool  bimodal_pred;    // Bimodal 预测器的独立预测
     bool  gshare_pred;   // Gshare 预测器的独立预测
 };
 
-// ============================================================================
-// ReorderBuffer: 重排序缓冲区，环形队列
-// ============================================================================
 class ReorderBuffer {
-    static const int MAX_SZ = 64;
-    ROB_Entry old_[MAX_SZ];
-    ROB_Entry new_[MAX_SZ];
-    int head_o_, tail_o_, cnt_o_;
-    int head_n_, tail_n_, cnt_n_;
+    static const int MAX_SIZE = 64;
+    ROB_Entry old_[MAX_SIZE];
+    ROB_Entry new_[MAX_SIZE];
+    int head_old_, tail_old_, cnt_old_;
+    int head_new_, tail_new_, cnt_new_;
     int cap_;
 
     static ROB_Entry empty_entry();
@@ -40,70 +34,67 @@ class ReorderBuffer {
   public:
     ReorderBuffer(int cap);
 
-    // ---- 状态管理 ----
-    void snap();
-    void upd();
+    void update();
 
-    // ---- 读取旧状态 ----
-    bool full_o()  const;
-    bool empty_o() const;
-    int  head_o()  const;
-    int  count_o() const;
+    bool full_old()  const;
+    bool empty_old() const;
+    int  head_old()  const;
+    int  count_old() const;
     int  cap()     const;
 
-    const ROB_Entry& entry_o(int idx) const;
+    const ROB_Entry& entry_old(int idx) const;
     const ROB_Entry& entry_cur(int idx) const;
 
     // 按标签查找
-    int find_by_tag_o(int tag) const;
+    int find_by_tag_old(int tag) const;
 
-    // 检查标签是否在 ROB 中有效（未被 flush）
-    bool tag_valid_o(int tag) const;
+    // 检查标签是否在 ROB 中有效(未被 flush)
+    bool tag_valid_old(int tag) const;
 
     // 获取队首条目
-    int head_entry_o() const;
+    int head_entry_old() const;
 
-    // 遍历有效条目（从 head 开始第 n 个）
-    int nth_valid_o(int n) const;
+    // 遍历有效条目(从 head 开始第 n 个)
+    int nth_valid_old(int n) const;
 
-    int valid_count_o() const;
+    int valid_count_old() const;
 
     // 查找队首第一个未 flush 的条目索引
-    int first_valid_o() const;
+    int first_valid_old() const;
 
-    // ---- 写入新状态（issue：分配条目） ----
-    int alloc_n();
+    // issue：分配条目
+    int alloc_new();
 
-    void set_dest_n(int idx, u8 rd, int tag);
+    void set_dest_new(int idx, u8 rd, int tag);
 
-    void set_pc_n(int idx, u32 pc);
+    void set_pc_new(int idx, u32 pc);
 
-    void set_branch_n(int idx, bool pred, bool br, bool jp, u32 tgt);
+    void set_branch_new(int idx, bool pred, bool br, bool jp, u32 tgt);
 
-    void set_store_n(int idx);
+    void set_store_new(int idx);
 
-    void set_ghr_snapshot_n(int idx, u32 ghr);
+    void set_ghr_snapshot_new(int idx, u32 ghr);
 
-    void set_bimod_pred_n(int idx, bool pred);
+    void set_bimodal_pred_new(int idx, bool pred);
 
-    void set_gshare_pred_n(int idx, bool pred);
+    void set_gshare_pred_new(int idx, bool pred);
 
-    // ---- 写入新状态（writeback：标记结果就绪） ----
-    void write_result_n(int idx, u32 val);
+    // writeback：标记结果就绪
+    void write_result_new(int idx, u32 val);
 
-    // ---- 写入新状态（execute：标记 store 已完成） ----
-    void mark_store_done_n(int idx);
+    // execute：标记 store 已完成
+    void mark_store_done_new(int idx);
 
-    // ---- 写入新状态（execute/mispredict：刷掉指定位置之后的所有条目） ----
-    void flush_after_n(int idx);
+    // execute/mispredict：刷掉指定位置之后的所有条目
+    void flush_after_new(int idx);
 
     // 刷掉所有
-    void flush_all_n();
+    void flush_all_new();
 
-    bool is_flushed_n(int idx) const;
+    bool is_flushed_new(int idx) const;
 
-    // ---- 写入新状态（commit：提交队首） ----
-    void commit_head_n();
+    // commit：提交队首
+    void commit_head_new();
 
-    ROB_Entry& entry_n(int idx);
+    ROB_Entry& entry_new(int idx);
 };
