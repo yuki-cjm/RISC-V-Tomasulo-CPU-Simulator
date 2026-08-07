@@ -497,7 +497,7 @@ void CPU::step_execute(const CDB_Entry& cdb) {
     }
 }
 
-void CPU::step_writeback(const CDB_Entry& cdb) {
+void CPU::step_writeresult(const CDB_Entry& cdb) {
     if (!cdb.valid) return;
 
     // 广播到所有 RS
@@ -616,7 +616,7 @@ void CPU::step() {
     CDB_Entry cdb = precompute_cdb();
 
     step_issue(cdb);
-    step_writeback(cdb);
+    step_writeresult(cdb);
     step_execute(cdb);
     step_commit(cdb);
     

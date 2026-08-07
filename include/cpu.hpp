@@ -50,7 +50,7 @@ class CPU {
     void step_fetch();
     void step_issue(const CDB_Entry& cdb);
     void step_execute(const CDB_Entry& cdb);
-    void step_writeback(const CDB_Entry& cdb);
+    void step_writeresult(const CDB_Entry& cdb);
     void step_commit(const CDB_Entry& cdb);
 
     void snap_all();

@@ -24,7 +24,6 @@ constexpr u32 RS_ALU_SIZE = 4;
 constexpr u32 RS_LD_SIZE  = 3;
 constexpr u32 RS_ST_SIZE  = 3;
 constexpr u32 RS_BR_SIZE  = 2;
-constexpr u32 BP_SIZE     = 64;
 struct FU_Result{u32 value;};
 
 enum class Instr { 
